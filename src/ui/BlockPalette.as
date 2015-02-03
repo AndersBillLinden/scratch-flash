@@ -27,6 +27,7 @@
 package ui {
 	import flash.geom.*;
 	import blocks.Block;
+	import flash.utils.Dictionary;
 	import interpreter.Interpreter;
 	import uiwidgets.*;
 	import scratch.ScratchObj;
@@ -41,7 +42,7 @@ public class BlockPalette extends ScrollFrameContents {
 		this.color = 0xE0E0E0;
 	}
 
-	override public function clear(scrollToOrigin:Boolean = true):void {
+	public function clearBlocks():void {
 		var interp:Interpreter = Scratch.app.interp;
 		var targetObj:ScratchObj = Scratch.app.viewedObj();
 		while (numChildren > 0) {
@@ -49,7 +50,17 @@ public class BlockPalette extends ScrollFrameContents {
 			if (interp.isRunning(b, targetObj)) interp.toggleThread(b, targetObj);
 			removeChildAt(0);
 		}
-		if (scrollToOrigin) x = y = 0;
+	}
+
+	private var category:int = -1;
+	private var scrolls:Dictionary = new Dictionary();
+
+	public function restoreY(selectedCategory:int): void {
+		if (category >= 0)
+			scrolls[category] = y;
+		var new_y = scrolls[selectedCategory];
+		y = new_y != null ? new_y : 0;
+		category = selectedCategory;
 	}
 
 	public function handleDrop(obj:*):Boolean {

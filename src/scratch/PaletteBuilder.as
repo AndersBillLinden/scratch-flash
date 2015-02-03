@@ -31,6 +31,7 @@ package scratch {
 	import flash.text.*;
 	import blocks.*;
 	import extensions.*;
+	import flash.utils.Dictionary;
 	import ui.media.MediaLibrary;
 	import ui.ProcedureSpecEditor;
 	import ui.parts.UIPart;
@@ -56,7 +57,7 @@ public class PaletteBuilder {
 
 	public function showBlocksForCategory(selectedCategory:int, scrollToOrigin:Boolean, shiftKey:Boolean = false):void {
 		if (app.palette == null) return;
-		app.palette.clear(scrollToOrigin);
+		app.palette.clearBlocks();
 		nextY = 7;
 
 		if (selectedCategory == Specs.dataCategory) return showDataCategory();
@@ -77,6 +78,8 @@ public class PaletteBuilder {
 		}
 		addBlocksForCategory(selectedCategory, catColor);
 		updateCheckboxes();
+		app.palette.restoreY(selectedCategory);
+		updateScrollbars();
 	}
 
 	private function addBlocksForCategory(category:int, catColor:int):void {
