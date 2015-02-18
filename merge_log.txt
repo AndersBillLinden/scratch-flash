@@ -1,0 +1,1529 @@
+I merged master into undo so we can have a up-to-date version of "undo" to continue developing.
+
+I encountered conflicts in the following files:
+src/Scratch.as
+src/blocks/Blocks.as
+src/scratch/ScratchComment.as
+src/scratch/ScratchRuntime.as
+src/ui/BlockPalette.as
+src/uiwidgets/ScriptsPane.as
+
+
+Scratch.as (file 1/6), conflict 1/2:
+
+	private function keyDown(evt:KeyboardEvent):void {
+		// Escape exists presentation mode.
+		if (evt.charCode == 27 && stagePart.isInPresentationMode()) {
+			setPresentationMode(false);
+			stagePart.exitPresentationMode();
+		// Handle enter key
+//		} else if(evt.keyCode == 13 && !stage.focus) {
+//			stagePart.playButtonPressed(null);
+//			evt.preventDefault();
+//			evt.stopImmediatePropagation();
+<<<<<<< HEAD
+		} else if (evt.ctrlKey) {
+			var handled:Boolean = true;
+			if (evt.charCode == 122) {
+				runtime.undo();
+			} else if (evt.charCode == (isOSX ? 90 : 121)) {
+				runtime.redo();
+			} else if (evt.charCode == 109) {
+				// Handle ctrl-m and toggle 2d/3d mode
+				if (isIn3D) {
+					go2D()
+				} else {
+					go3D();
+				}
+			} else {
+				handled = false;
+			}
+			if (handled) {
+				evt.preventDefault();
+				evt.stopImmediatePropagation();
+			}
+=======
+//		}
+		// Handle ctrl-m and toggle 2d/3d mode
+		else if(evt.ctrlKey && evt.charCode == 109) {
+			SCRATCH::allow3d { isIn3D ? go2D() : go3D(); }
+			evt.preventDefault();
+			evt.stopImmediatePropagation();
+>>>>>>> master
+		}
+	}
+
+As we can see, a ctrl-z handler was added to "undo" and ctrl-y for "redo".
+There was already a ctrl-m handler for toggling 3d mode.
+In the "undo" branch, events using the ctrl key has been logically grouped in an if-block.
+The "handled" boolean has been added so that independent of which key that was used together
+with ctrl, evt.preventDefault(); and evt.stopImmediatePropagation(); will only be called
+if ctrl together with some other key than z or m is pressed.
+
+The conflict seems to be because of a SCRATCH::allow3d block has been added to master after
+the branch "undo" was created. We want to keep that conditional compilation block.
+
+The conclusion is that the function could look like this:
+
+	private function keyDown(evt:KeyboardEvent):void {
+		// Escape exists presentation mode.
+		if (evt.charCode == 27 && stagePart.isInPresentationMode()) {
+			setPresentationMode(false);
+			stagePart.exitPresentationMode();
+		// Handle enter key
+//		} else if(evt.keyCode == 13 && !stage.focus) {
+//			stagePart.playButtonPressed(null);
+//			evt.preventDefault();
+//			evt.stopImmediatePropagation();
+		} else if (evt.ctrlKey) {
+			var handled:Boolean = true;
+			if (evt.charCode == 122) {
+				runtime.undo();
+			} else if (evt.charCode == (isOSX ? 90 : 121)) {
+				runtime.redo();
+			} else if (evt.charCode == 109) {
+				SCRATCH::allow3d { isIn3D ? go2D() : go3D(); }
+			} else {
+				handled = false;
+			}
+			if (handled) {
+				evt.preventDefault();
+				evt.stopImmediatePropagation();
+			}
+		}
+	}
+
+
+Scratch.as (file 1/6), conflict 2/2:
+
+	public function addSprite(spr:ScratchSprite, showImages:Boolean = false):void {
+		var c:ScratchCostume, byteCount:int;
+		for each (c in spr.costumes) {
+<<<<<<< HEAD
+			if (!c.baseLayerData) c.prepareToSave();
+			byteCount + c.baseLayerData.length;
+=======
+			if (!c.baseLayerData) c.prepareToSave()
+			byteCount += c.baseLayerData.length;
+>>>>>>> master
+		}
+		if (!okayToAdd(byteCount)) return; // not enough room
+		stagePane.addChild(spr);
+		spr.updateCostume();
+		selectSprite(spr);
+		setTab(showImages ? 'images' : 'scripts');
+		setSaveNeeded(true);
+		libraryPart.refresh();
+		for each (c in spr.costumes) {
+			if (ScratchCostume.isSVGData(c.baseLayerData)) c.setSVGData(c.baseLayerData, false);
+		}
+	}
+
+We can see that both branches each addresses a bug: ; on the end of a line and += instead of +.
+It is a conflict even if it is not on the same line, but changes made in neighbouring lines.
+It is very simple to make a decision:
+
+	public function addSprite(spr:ScratchSprite, showImages:Boolean = false):void {
+		var c:ScratchCostume, byteCount:int;
+		for each (c in spr.costumes) {
+			if (!c.baseLayerData) c.prepareToSave();
+			byteCount += c.baseLayerData.length;
+		}
+		if (!okayToAdd(byteCount)) return; // not enough room
+		stagePane.addChild(spr);
+		spr.updateCostume();
+		selectSprite(spr);
+		setTab(showImages ? 'images' : 'scripts');
+		setSaveNeeded(true);
+		libraryPart.refresh();
+		for each (c in spr.costumes) {
+			if (ScratchCostume.isSVGData(c.baseLayerData)) c.setSVGData(c.baseLayerData, false);
+		}
+	}
+
+
+src/blocks/Block.as (file 2/6), conflict 1/1:
+
+We have a conflict spanning over two functions:
+
+	public function restoreOriginalState():void {
+<<<<<<< HEAD
+		restoreState(originalState);
+	}
+
+	public function restoreState(s:BlockState):void {
+		var b:Block = s.parent as Block;
+		switch (s.role) {
+=======
+		var b:Block = originalParent as Block;
+		scaleX = scaleY = 1;
+		switch (originalRole) {
+>>>>>>> master
+		case ROLE_NONE:
+			if (parent) parent.removeChild(this);
+			break;
+		case ROLE_ABSOLUTE:
+			s.parent.addChild(this);
+			x = s.position.x;
+			y = s.position.y;
+			break;
+		case ROLE_EMBEDDED:
+			b.replaceArgWithBlock(b.args[s.index], this, Scratch.app.scriptsPane);
+			break;
+		case ROLE_NEXT:
+			b.insertBlock(this);
+			break;
+		case ROLE_SUBSTACK1:
+			b.insertBlockSub1(this);
+			break;
+		case ROLE_SUBSTACK2:
+			b.insertBlockSub2(this);
+			break;
+		}
+	}
+
+
+restoreState is added in the "undo" branch, because we need to call it with
+other things than the original state. restoreOriginalState will be called
+to reset with original state. Now, why is there a conflict? Could be
+because of the line scaleX = scaleY = 1;. Does it make sense to reset the
+scale when we restore a state? No, we remove the line. Here is the result
+
+	public function restoreOriginalState():void {
+		restoreState(originalState);
+	}
+
+	public function restoreState(s:BlockState):void {
+		var b:Block = s.parent as Block;
+		switch (s.role) {
+		case ROLE_NONE:
+			if (parent) parent.removeChild(this);
+			break;
+		case ROLE_ABSOLUTE:
+			s.parent.addChild(this);
+			x = s.position.x;
+			y = s.position.y;
+			break;
+		case ROLE_EMBEDDED:
+			b.replaceArgWithBlock(b.args[s.index], this, Scratch.app.scriptsPane);
+			break;
+		case ROLE_NEXT:
+			b.insertBlock(this);
+			break;
+		case ROLE_SUBSTACK1:
+			b.insertBlockSub1(this);
+			break;
+		case ROLE_SUBSTACK2:
+			b.insertBlockSub2(this);
+			break;
+		}
+	}
+	
+This conflict was in other words solved acceping "our" branch.
+
+src/scratch/ScratchComment.as (file 3/6), conflict 1/1;
+
+<<<<<<< HEAD
+	public var originalState:Array;
+
+	public function ScratchComment(s:String = 'add comment here...', isOpen:Boolean = true, width:int = 150, blockID:int = -1) {
+=======
+	public function ScratchComment(s:String = null, isOpen:Boolean = true, width:int = 150, blockID:int = -1) {
+>>>>>>> master
+		this.isOpen = isOpen;
+		this.blockID = blockID;
+		addFrame();
+		addChild(titleBar = new Shape());
+		addChild(clipMask = new Shape());
+		addExpandButton();
+		addTitle();
+		addContents();
+		contents.text = s || Translator.map('add comment here...');
+		contents.mask = clipMask;
+		frame.setWidthHeight(width, 200);
+		expandedSize = new Point(width, 200);
+		addEventListener(MouseEvent.MOUSE_DOWN, mouseDown);
+		fixLayout();
+		setExpanded(isOpen);
+	}
+
+(Notice: In this file, originalState is an Array instead of a BlockState).
+The signature of the function has been slightly changed, we will use the master version.
+The conflict is because of adding a field very close to the signature change. Result:
+
+	public var originalState:Array;
+
+	public function ScratchComment(s:String = null, isOpen:Boolean = true, width:int = 150, blockID:int = -1) {
+		this.isOpen = isOpen;
+		this.blockID = blockID;
+		addFrame();
+		addChild(titleBar = new Shape());
+		addChild(clipMask = new Shape());
+		addExpandButton();
+		addTitle();
+		addContents();
+		contents.text = s || Translator.map('add comment here...');
+		contents.mask = clipMask;
+		frame.setWidthHeight(width, 200);
+		expandedSize = new Point(width, 200);
+		addEventListener(MouseEvent.MOUSE_DOWN, mouseDown);
+		fixLayout();
+		setExpanded(isOpen);
+	}
+
+src/scratch/ScratchRuntime.as (file 4/6), conflict 1/1;
+
+	private function existingWatcherForVar(target:ScratchObj, vName:String):Watcher {
+		var uiLayer:Sprite = app.stagePane.getUILayer();
+		for (var i:int = 0; i < uiLayer.numChildren; i++) {
+			var c:* = uiLayer.getChildAt(i);
+			if ((c is Watcher) && (c.isVarWatcherFor(target, vName))) return c;
+		}
+		return null;
+	}
+
+	// -----------------------------
+	// Undo support
+	//------------------------------
+
+	private var done:Array = [];
+	private var undone:Array = [];
+
+	public function canUndo():Boolean {
+		return !!done.length && !app.gh.carriedObj;
+	}
+	public function canRedo():Boolean {
+		return !!undone.length && !app.gh.carriedObj;
+	}
+
+	public function undoLabel():String {
+		return actionListLabel('Undo', done);
+	}
+	public function redoLabel():String {
+		return actionListLabel('Redo', undone);
+	}
+	private function actionListLabel(prefix:String, a:Array):String {
+		var action:String = a.length ? getActionName(a[a.length - 1]) : '';
+		return Translator.map(prefix) + ' ' + action;
+	}
+
+	public function undo():Boolean {
+		if (!canUndo()) return false;
+		var a:Array = done.pop();
+		unperform(a);
+		undone.push(a);
+		return true;
+	}
+
+	public function redo():Boolean {
+		if (!canRedo()) return false;
+		var a:Array = undone.pop();
+		perform(a);
+		done.push(a);
+		return true;
+	}
+
+	private static const DROP_BLOCK:int = 1;
+	private static const REPLACE_ARG:int = 2;
+	private static const INSERT_BLOCK:int = 3;
+	private static const INSERT_BLOCK_ABOVE:int = 4;
+	private static const INSERT_BLOCK_SUB1:int = 5;
+	private static const INSERT_BLOCK_SUB2:int = 6;
+	private static const INSERT_BLOCK_AROUND:int = 7;
+	private static const DROP_INTO_THUMBNAIL:int = 8;
+	private static const DELETE_BLOCK:int = 9;
+	private static const CLEAN_UP:int = 10;
+	private static const DELETE_SPRITE:int = 11;
+	private static const ADD_SPRITE:int = 12;
+	private static const CHANGE_INPUT:int = 13;
+	private static const RENAME_SPRITE:int = 14;
+	private static const RENAME_COSTUME:int = 15;
+	private static const RENAME_SOUND:int = 16;
+	private static const EDIT_SOUND:int = 17;
+	private static const DELETE_COMMENT:int = 18;
+	private static const ADD_COMMENT:int = 19;
+	private static const DROP_COMMENT:int = 20;
+	private static const CHANGE_COMMENT:int = 21;
+	private static const ADD_SOUND:int = 22;
+	private static const DELETE_SOUND:int = 23;
+	private static const ADD_COSTUME:int = 24;
+	private static const DELETE_COSTUME:int = 25;
+
+	public function recordDropBlock(b:Block):void {
+		recordAction([DROP_BLOCK, app.viewedObj(), b.parent, b, b.originalState, b.saveState()]);
+	}
+	public function recordReplaceArg(a:DisplayObject, b:Block):void {
+		recordAction([REPLACE_ARG, app.viewedObj(), a.parent, a, b, Block(a.parent).argIndex(a), b.originalState]);
+	}
+	public function recordInsertBlock(t:Block, b:Block):void {
+		recordAction([INSERT_BLOCK, app.viewedObj(), t, b, t.nextBlock, b.originalState]);
+	}
+	public function recordInsertBlockAbove(t:Block, b:Block):void {
+		recordAction([INSERT_BLOCK_ABOVE, app.viewedObj(), t, b, t.saveState(), b.originalState]);
+	}
+	public function recordInsertBlockSub1(t:Block, b:Block):void {
+		recordAction([INSERT_BLOCK_SUB1, app.viewedObj(), t, b, t.subStack1, b.originalState]);
+	}
+	public function recordInsertBlockSub2(t:Block, b:Block):void {
+		recordAction([INSERT_BLOCK_SUB2, app.viewedObj(), t, b, t.subStack2, b.originalState]);
+	}
+	public function recordInsertBlockAround(t:Block, b:Block):void {
+		recordAction([INSERT_BLOCK_AROUND, app.viewedObj(), t, b, t.saveState(), b.originalState]);
+	}
+	public function recordDropIntoThumbnail(t:ScratchObj, b:Block):void {
+		recordAction([DROP_INTO_THUMBNAIL, t, b]);
+	}
+	public function recordDeleteBlock(b:Block, state:BlockState):void {
+		if (state.role == Block.ROLE_NONE) return;
+		var comments:Array = b.attachedCommentsIn(app.scriptsPane);
+		if (comments.length) {
+			for each (var c:ScratchComment in comments) {
+				c.parent.removeChild(c);
+			}
+			app.scriptsPane.fixCommentLayout();
+		}
+		recordAction([DELETE_BLOCK, app.viewedObj(), b, state, comments]);
+	}
+	public function recordCleanUp():void {
+		var obj:ScratchObj = app.viewedObj();
+		var positions:Array = [];
+		for each (var s:Block in obj.scripts) {
+			positions.push([s, s.x, s.y]);
+		}
+		recordAction([CLEAN_UP, obj, positions]);
+	}
+	public function recordDeleteSprite(s:ScratchSprite):void {
+		recordAction([DELETE_SPRITE, s, s.scratchX, s.scratchY]);
+	}
+	public function recordAddSprite(s:ScratchSprite):void {
+		recordAction([ADD_SPRITE, s]);
+	}
+	public function recordChangeInput(i:BlockArg, old:String):void {
+		if (old == i.field.text) return;
+		recordAction([CHANGE_INPUT, app.viewedObj(), i, old, i.field.text]);
+	}
+	public function recordRenameSprite(name:String):void {
+		var obj:ScratchObj = app.viewedObj();
+		recordAction([RENAME_SPRITE, obj, obj.objName, name]);
+	}
+	public function recordRenameCostume(name:String):void {
+		var obj:ScratchObj = app.viewedObj();
+		var costume:ScratchCostume = obj.currentCostume();
+		recordAction([RENAME_COSTUME, obj, costume, costume.costumeName, name]);
+	}
+	public function recordRenameSound(s:ScratchSound, name:String):void {
+		var obj:ScratchObj = app.viewedObj();
+		recordAction([RENAME_SOUND, obj, s, s.soundName, name]);
+	}
+	public function recordEditSound(s:ScratchSound, action:String, record:Array):void {
+		var obj:ScratchObj = app.viewedObj();
+		var d:Object = s.editorData;
+		recordAction([EDIT_SOUND, obj, s, action, [d.samples, d.condensedSamples, d.samplesPerCondensedSample], record]);
+	}
+	public function recordDeleteComment(c:ScratchComment, x:Number, y:Number):void {
+		if (!c.originalState[0]) return;
+		recordAction([DELETE_COMMENT, app.viewedObj(), c, x, y]);
+	}
+	public function recordAddComment(c:ScratchComment):void {
+		recordAction([ADD_COMMENT, app.viewedObj(), c, c.x, c.y, c.blockRef]);
+	}
+	public function recordDropComment(c:ScratchComment):void {
+		recordAction([DROP_COMMENT, app.viewedObj(), c, c.originalState, c.saveState()]);
+	}
+	public function recordChangeComment(c:ScratchComment, old:String, text:String):void {
+		if (old == text) return;
+		recordAction([CHANGE_COMMENT, app.viewedObj(), c, old, text]);
+	}
+	public function recordAddSound(s:ScratchSound, obj:ScratchObj):void {
+		recordAction([ADD_SOUND, obj, s, obj.sounds.length]);
+	}
+	public function recordDeleteSound(s:ScratchSound, obj:ScratchObj):void {
+		recordAction([DELETE_SOUND, obj, s, obj.sounds.indexOf(s)]);
+	}
+	public function recordAddCostume(c:ScratchCostume, obj:ScratchObj):void {
+		recordAction([ADD_COSTUME, obj, c, obj.costumes.length]);
+	}
+	public function recordDeleteCostume(c:ScratchCostume, obj:ScratchObj):void {
+		recordAction([DELETE_COSTUME, obj, c, obj.costumes.indexOf(c)]);
+	}
+
+	private function recordAction(a:Array):void {
+		done.push(a);
+		undone.length = 0;
+	}
+
+	private static const scriptActions:Array = [DROP_BLOCK, REPLACE_ARG, INSERT_BLOCK, INSERT_BLOCK_ABOVE, INSERT_BLOCK_SUB1, INSERT_BLOCK_SUB2, INSERT_BLOCK_AROUND, DELETE_BLOCK, CLEAN_UP, CHANGE_INPUT, RENAME_SPRITE, DELETE_COMMENT, ADD_COMMENT, DROP_COMMENT, CHANGE_COMMENT];
+	private function unperform(a:Array):void {
+		selectSpriteForAction(a);
+		switch (a[0]) {
+		case DROP_BLOCK:
+			removeBlock(a[3]);
+			a[3].restoreState(a[4]);
+			break;
+		case REPLACE_ARG:
+			a[2].replaceArg(a[5], a[3]);
+			a[4].restoreState(a[6]);
+			break;
+		case INSERT_BLOCK:
+			removeBlock(a[3]);
+			if (a[4]) {
+				removeBlock(a[4]);
+				a[2].insertBlock(a[4]);
+			}
+<<<<<<< HEAD
+			a[3].restoreState(a[5]);
+			break;
+		case INSERT_BLOCK_ABOVE:
+			removeBlock(a[2]);
+			removeBlock(a[3]);
+			a[2].restoreState(a[4]);
+			a[3].restoreState(a[5]);
+			break;
+		case INSERT_BLOCK_SUB1:
+			removeBlock(a[3]);
+			if (a[4]) {
+				removeBlock(a[4]);
+				a[2].insertBlockSub1(a[4]);
+			}
+			a[3].restoreState(a[5]);
+			break;
+		case INSERT_BLOCK_SUB2:
+			removeBlock(a[3]);
+			if (a[4]) {
+				removeBlock(a[4]);
+				a[2].insertBlockSub2(a[4]);
+			}
+			a[3].restoreState(a[5]);
+			break;
+		case INSERT_BLOCK_AROUND:
+			removeBlock(a[2]);
+			removeBlock(a[3]);
+			a[2].restoreState(a[4]);
+			a[3].restoreState(a[5]);
+			break;
+		case DROP_INTO_THUMBNAIL:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('scripts');
+			if (a[2].parent) a[2].parent.removeChild(a[2]);
+			break;
+		case DELETE_BLOCK:
+			a[2].restoreState(a[3]);
+			for each (var c:ScratchComment in a[4]) {
+				app.scriptsPane.addChild(c);
+			}
+			break;
+		case CLEAN_UP:
+			for each (var s:Array in a[2]) {
+				s[0].x = s[1];
+				s[0].y = s[2];
+			}
+			break;
+		case DELETE_SPRITE:
+			app.addSprite(a[1]);
+			a[1].setScratchXY(a[2], a[3]);
+			break;
+		case ADD_SPRITE:
+			a[1].deleteSprite();
+			break;
+		case CHANGE_INPUT:
+			a[2].setArgValue(a[3]);
+			break;
+		case RENAME_SPRITE:
+			selectSpriteIfNeeded(a[1]);
+			setSpriteName(a[2]);
+			app.libraryPart.refresh();
+			break;
+		case RENAME_COSTUME:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('images');
+			a[1].currentCostumeIndex = a[1].costumes.indexOf(a[2]);
+			setCostumeName(a[3]);
+			app.imagesPart.refresh();
+			break;
+		case RENAME_SOUND:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('sounds');
+			setSoundName(a[2], a[3]);
+			app.soundsPart.selectSound(a[2]);
+			break;
+		case EDIT_SOUND:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('sounds');
+			app.soundsPart.selectSound(a[2]);
+			app.soundsPart.editor.waveform.installUndoRecord(a[4]);
+			break;
+		case DELETE_COMMENT:
+			app.scriptsPane.addChild(a[2]);
+			a[2].x = a[3];
+			a[2].y = a[4];
+			break;
+		case ADD_COMMENT:
+			app.scriptsPane.removeChild(a[2]);
+			break;
+		case DROP_COMMENT:
+			a[2].restoreState(a[3]);
+			break;
+		case CHANGE_COMMENT:
+			a[2].setContents(a[3]);
+			break;
+		case ADD_SOUND:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('sounds');
+			a[1].deleteSound(a[2]);
+			app.soundsPart.refresh();
+			break;
+		case DELETE_SOUND:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('sounds');
+			a[1].sounds.splice(a[3], 0, a[2]);
+			app.soundsPart.selectSound(a[2]);
+			break;
+		case ADD_COSTUME:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('images');
+			a[1].deleteCostume(a[2]);
+			app.imagesPart.refresh();
+			break;
+		case DELETE_COSTUME:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('images');
+			a[1].costumes.splice(a[3], 0, a[2]);
+			a[1].currentCostumeIndex = a[3];
+			app.imagesPart.refresh();
+			break;
+		}
+		saveForAction(a);
+	}
+
+	private function perform(a:Array):void {
+		selectSpriteForAction(a);
+		switch (a[0]) {
+		case DROP_BLOCK:
+			removeBlock(a[3]);
+			a[3].restoreState(a[5]);
+			break;
+		case REPLACE_ARG:
+			removeBlock(a[4]);
+			a[2].replaceArgWithBlock(a[3], a[4], app.scriptsPane);
+			break;
+		case INSERT_BLOCK:
+			removeBlock(a[3]);
+			a[2].insertBlock(a[3]);
+			break;
+		case INSERT_BLOCK_ABOVE:
+			removeBlock(a[3]);
+			a[2].insertBlockAbove(a[3]);
+			break;
+		case INSERT_BLOCK_SUB1:
+			removeBlock(a[3]);
+			a[2].insertBlockSub1(a[3]);
+			break;
+		case INSERT_BLOCK_SUB2:
+			removeBlock(a[3]);
+			a[2].insertBlockSub2(a[3]);
+			break;
+		case INSERT_BLOCK_AROUND:
+			removeBlock(a[3]);
+			a[2].insertBlockAround(a[3]);
+			break;
+		case DROP_INTO_THUMBNAIL:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('scripts');
+			a[2].x = app.scriptsPane.padding;
+			a[2].y = app.scriptsPane.padding;
+			app.scriptsPane.addChild(a[2]);
+			break;
+		case DELETE_BLOCK:
+			removeBlock(a[2]);
+			if (a[2].parent) a[2].parent.removeChild(a[2]);
+			for each (var c:ScratchComment in a[4]) {
+				app.scriptsPane.removeChild(c);
+			}
+			break;
+		case CLEAN_UP:
+			app.scriptsPane.cleanup();
+			break;
+		case DELETE_SPRITE:
+			a[1].deleteSprite();
+			break;
+		case ADD_SPRITE:
+			app.addSprite(a[1]);
+			break;
+		case CHANGE_INPUT:
+			a[2].setArgValue(a[4]);
+			break;
+		case RENAME_SPRITE:
+			selectSpriteIfNeeded(a[1]);
+			setSpriteName(a[3]);
+			app.libraryPart.refresh();
+			break;
+		case RENAME_COSTUME:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('images');
+			a[1].currentCostumeIndex = a[1].costumes.indexOf(a[2]);
+			setCostumeName(a[4]);
+			app.imagesPart.refresh();
+			break;
+		case RENAME_SOUND:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('sounds');
+			setSoundName(a[2], a[4]);
+			app.soundsPart.selectSound(a[2]);
+			break;
+		case EDIT_SOUND:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('sounds');
+			app.soundsPart.selectSound(a[2]);
+			app.soundsPart.editor.waveform.installUndoRecord(a[5]);
+			break;
+		case DELETE_COMMENT:
+			if (a[2].parent) a[2].parent.removeChild(a[2]);
+			break;
+		case ADD_COMMENT:
+			app.scriptsPane.addChild(a[2]);
+			a[2].x = a[3];
+			a[2].y = a[4];
+			a[2].blockRef = a[5];
+			break;
+		case DROP_COMMENT:
+			a[2].restoreState(a[4]);
+			break;
+		case CHANGE_COMMENT:
+			a[2].setContents(a[4]);
+			break;
+		case ADD_SOUND:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('sounds');
+			a[1].sounds.splice(a[3], 0, a[2]);
+			app.soundsPart.selectSound(a[2]);
+			break;
+		case DELETE_SOUND:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('sounds');
+			a[1].deleteSound(a[2]);
+			app.soundsPart.refresh();
+			break;
+		case ADD_COSTUME:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('images');
+			a[1].costumes.splice(a[3], 0, a[2]);
+			a[1].currentCostumeIndex = a[3];
+			app.imagesPart.refresh();
+			break;
+		case DELETE_COSTUME:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('images');
+			a[1].deleteCostume(a[2]);
+			app.imagesPart.refresh();
+			break;
+		}
+		saveForAction(a);
+	}
+
+	public function getActionName(a:Array):String {
+		switch (a[0]) {
+		case DROP_BLOCK:
+		case REPLACE_ARG:
+		case INSERT_BLOCK:
+		case INSERT_BLOCK_ABOVE:
+		case INSERT_BLOCK_SUB1:
+		case INSERT_BLOCK_SUB2:
+		case INSERT_BLOCK_AROUND: return Translator.map('drop block');
+		case DROP_INTO_THUMBNAIL: return Translator.map('copy block');
+		case DELETE_BLOCK: return Translator.map('delete block');
+		case DELETE_SPRITE: return Translator.map('delete sprite');
+		case CLEAN_UP: return Translator.map('clean up');
+		case ADD_SPRITE: return Translator.map('add sprite');
+		case CHANGE_INPUT: return Translator.map('edit input');
+		case RENAME_SPRITE: return Translator.map('rename sprite');
+		case RENAME_COSTUME: return a[1].isStage ? Translator.map('rename backdrop') : Translator.map('rename costume');
+		case RENAME_SOUND: return Translator.map('rename sound');
+		case EDIT_SOUND: return Translator.map(a[3]);
+		case DELETE_COMMENT: return Translator.map('delete comment');
+		case ADD_COMMENT: return Translator.map('add comment');
+		case DROP_COMMENT: return Translator.map('drop comment');
+		case CHANGE_COMMENT: return Translator.map('edit comment');
+		case ADD_SOUND: return Translator.map('add sound');
+		case DELETE_SOUND: return Translator.map('delete sound');
+		case ADD_COSTUME: return a[1].isStage ? Translator.map('add backdrop') : Translator.map('add costume');
+		case DELETE_COSTUME: return a[1].isStage ? Translator.map('delete backdrop') : Translator.map('delete costume');
+		}
+		return '';
+	}
+
+	private function selectSpriteForAction(a:Array):void {
+		if (scriptActions.indexOf(a[0]) != -1) {
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('scripts');
+=======
+		} else if (obj is ScratchSprite) {
+			app.addNewSprite(obj);
+			obj.setScratchXY(x, y);
+			app.selectSprite(obj);
+		} else if ((obj is Array) || (obj is Block) || (obj is ScratchComment)) {
+			app.selectSprite(prevOwner);
+			app.setTab('scripts');
+			var b:DisplayObject = obj is Array ? obj[0] : obj;
+			b.x = app.scriptsPane.padding;
+			b.y = app.scriptsPane.padding;
+			if (b is Block) b.cacheAsBitmap = true;
+			app.scriptsPane.addChild(b);
+			if (obj is Array) {
+				for each (var c:ScratchComment in obj[1]) {
+					app.scriptsPane.addChild(c);
+				}
+			}
+			app.scriptsPane.saveScripts();
+			if (b is Block) app.updatePalette();
+>>>>>>> master
+		}
+	}
+
+	private function saveForAction(a:Array):void {
+		if (scriptActions.indexOf(a[0]) != -1) {
+			app.scriptsPane.saveScripts();
+			app.scriptsPane.updateSize();
+		} else {
+			app.setSaveNeeded();
+		}
+	}
+
+	private function selectSpriteIfNeeded(s:ScratchObj):void {
+		if (app.viewedObj() != s) {
+			app.selectSprite(s);
+		}
+	}
+
+	private function selectTabIfNeeded(t:String):void {
+		if (app.lastTab != t) {
+			app.setTab(t);
+		}
+	}
+
+	private function removeBlock(b:Block):void {
+		if (b.parent is Block) Block(b.parent).removeBlock(b);
+	}
+
+	
+	
+Here comes the version from master:
+
+	private function existingWatcherForVar(target:ScratchObj, vName:String):Watcher {
+		var uiLayer:Sprite = app.stagePane.getUILayer();
+		for (var i:int = 0; i < uiLayer.numChildren; i++) {
+			var c:* = uiLayer.getChildAt(i);
+			if ((c is Watcher) && (c.isVarWatcherFor(target, vName))) return c;
+		}
+		return null;
+	}
+
+	// -----------------------------
+	// Undelete support
+	//------------------------------
+
+	private var lastDelete:Array; // object, x, y, owner (for blocks/stacks/costumes/sounds)
+
+	public function canUndelete():Boolean { return lastDelete != null }
+	public function clearLastDelete():void { lastDelete = null }
+
+	public function recordForUndelete(obj:*, x:int, y:int, index:int, owner:* = null):void {
+		if (obj is Block) {
+			var comments:Array = (obj as Block).attachedCommentsIn(app.scriptsPane);
+			if (comments.length) {
+				for each (var c:ScratchComment in comments) {
+					c.parent.removeChild(c);
+				}
+				app.scriptsPane.fixCommentLayout();
+				obj = [obj, comments];
+			}
+		}
+		lastDelete = [obj, x, y, index, owner];
+	}
+
+	public function undelete():void {
+		if (!lastDelete) return;
+		var obj:* = lastDelete[0];
+		var x:int = lastDelete[1];
+		var y:int = lastDelete[2];
+		var index:int = lastDelete[3];
+		var previousOwner:* = lastDelete[4];
+		doUndelete(obj, x, y, previousOwner);
+		lastDelete = null;
+	}
+
+	protected function doUndelete(obj:*, x:int, y:int, prevOwner:*):void {
+		if (obj is MediaInfo) {
+			if (prevOwner is ScratchObj) {
+				app.selectSprite(prevOwner);
+				if (obj.mycostume) app.addCostume(obj.mycostume as ScratchCostume);
+				if (obj.mysound) app.addSound(obj.mysound as ScratchSound);
+			}
+		} else if (obj is ScratchSprite) {
+			app.addNewSprite(obj);
+			obj.setScratchXY(x, y);
+			app.selectSprite(obj);
+		} else if ((obj is Array) || (obj is Block) || (obj is ScratchComment)) {
+			app.selectSprite(prevOwner);
+			app.setTab('scripts');
+			var b:DisplayObject = obj is Array ? obj[0] : obj;
+			b.x = app.scriptsPane.padding;
+			b.y = app.scriptsPane.padding;
+			if (b is Block) b.cacheAsBitmap = true;
+			app.scriptsPane.addChild(b);
+			if (obj is Array) {
+				for each (var c:ScratchComment in obj[1]) {
+					app.scriptsPane.addChild(c);
+				}
+			}
+			app.scriptsPane.saveScripts();
+			if (b is Block) app.updatePalette();
+		}
+	}
+
+
+We see that "undelete" has became "undo" in the "undo" branch. We can also
+see that there is some garbage from doUndelete in the merge conflict. So it
+has been altered. We need to check what it was looking like before the "undo"
+branch was created, this is from the branch "Merge pull request #232 from cpseager/master, created 2014-06-02,
+so this is an OLD version:
+
+	protected function doUndelete(obj:*, x:int, y:int, prevOwner:*):void {
+		if (obj is MediaInfo) {
+			if (prevOwner is ScratchObj) {
+				app.selectSprite(prevOwner);
+				if (obj.mycostume) app.addCostume(obj.mycostume as ScratchCostume);
+				if (obj.mysound) app.addSound(obj.mysound as ScratchSound);
+			}
+		} else if (obj is ScratchSprite) {
+			app.addNewSprite(obj);
+			obj.setScratchXY(x, y);
+			app.selectSprite(obj);
+		} else if ((obj is Block) || (obj is ScratchComment)) {
+			app.selectSprite(prevOwner);
+			app.setTab('scripts');
+			obj.x = x;
+			obj.y = y;
+			if (obj is Block) obj.cacheAsBitmap = true;
+			app.scriptsPane.addChild(obj);
+		}
+	}
+
+The newer version of undelete
+* app.scriptsPane.saveScripts() and calls
+* app.updatePalette() and
+* sets the position for comments or blocks to x and y to app.scriptsPane.padding instead of x and y being sent to unDelete as parameters
+
+All those actions seems to be a strange thing to do, except updatePalette.
+But when we look at ScriptsPart.updatePalette we see that all it does is:
+
+	public function updatePalette():void {
+		selector.updateTranslation();
+		selector.select(selector.selectedCategory);
+	}
+
+and none of those two actions makes sense when it comes to "undo", we will in other words remove the remainings of doUndelete
+without compensating for that elsewhere. Then ScratchRuntime.as should look like:
+
+	private function existingWatcherForVar(target:ScratchObj, vName:String):Watcher {
+		var uiLayer:Sprite = app.stagePane.getUILayer();
+		for (var i:int = 0; i < uiLayer.numChildren; i++) {
+			var c:* = uiLayer.getChildAt(i);
+			if ((c is Watcher) && (c.isVarWatcherFor(target, vName))) return c;
+		}
+		return null;
+	}
+
+	// -----------------------------
+	// Undo support
+	//------------------------------
+
+	private var done:Array = [];
+	private var undone:Array = [];
+
+	public function canUndo():Boolean {
+		return !!done.length && !app.gh.carriedObj;
+	}
+	public function canRedo():Boolean {
+		return !!undone.length && !app.gh.carriedObj;
+	}
+
+	public function undoLabel():String {
+		return actionListLabel('Undo', done);
+	}
+	public function redoLabel():String {
+		return actionListLabel('Redo', undone);
+	}
+	private function actionListLabel(prefix:String, a:Array):String {
+		var action:String = a.length ? getActionName(a[a.length - 1]) : '';
+		return Translator.map(prefix) + ' ' + action;
+	}
+
+	public function undo():Boolean {
+		if (!canUndo()) return false;
+		var a:Array = done.pop();
+		unperform(a);
+		undone.push(a);
+		return true;
+	}
+
+	public function redo():Boolean {
+		if (!canRedo()) return false;
+		var a:Array = undone.pop();
+		perform(a);
+		done.push(a);
+		return true;
+	}
+
+	private static const DROP_BLOCK:int = 1;
+	private static const REPLACE_ARG:int = 2;
+	private static const INSERT_BLOCK:int = 3;
+	private static const INSERT_BLOCK_ABOVE:int = 4;
+	private static const INSERT_BLOCK_SUB1:int = 5;
+	private static const INSERT_BLOCK_SUB2:int = 6;
+	private static const INSERT_BLOCK_AROUND:int = 7;
+	private static const DROP_INTO_THUMBNAIL:int = 8;
+	private static const DELETE_BLOCK:int = 9;
+	private static const CLEAN_UP:int = 10;
+	private static const DELETE_SPRITE:int = 11;
+	private static const ADD_SPRITE:int = 12;
+	private static const CHANGE_INPUT:int = 13;
+	private static const RENAME_SPRITE:int = 14;
+	private static const RENAME_COSTUME:int = 15;
+	private static const RENAME_SOUND:int = 16;
+	private static const EDIT_SOUND:int = 17;
+	private static const DELETE_COMMENT:int = 18;
+	private static const ADD_COMMENT:int = 19;
+	private static const DROP_COMMENT:int = 20;
+	private static const CHANGE_COMMENT:int = 21;
+	private static const ADD_SOUND:int = 22;
+	private static const DELETE_SOUND:int = 23;
+	private static const ADD_COSTUME:int = 24;
+	private static const DELETE_COSTUME:int = 25;
+
+	public function recordDropBlock(b:Block):void {
+		recordAction([DROP_BLOCK, app.viewedObj(), b.parent, b, b.originalState, b.saveState()]);
+	}
+	public function recordReplaceArg(a:DisplayObject, b:Block):void {
+		recordAction([REPLACE_ARG, app.viewedObj(), a.parent, a, b, Block(a.parent).argIndex(a), b.originalState]);
+	}
+	public function recordInsertBlock(t:Block, b:Block):void {
+		recordAction([INSERT_BLOCK, app.viewedObj(), t, b, t.nextBlock, b.originalState]);
+	}
+	public function recordInsertBlockAbove(t:Block, b:Block):void {
+		recordAction([INSERT_BLOCK_ABOVE, app.viewedObj(), t, b, t.saveState(), b.originalState]);
+	}
+	public function recordInsertBlockSub1(t:Block, b:Block):void {
+		recordAction([INSERT_BLOCK_SUB1, app.viewedObj(), t, b, t.subStack1, b.originalState]);
+	}
+	public function recordInsertBlockSub2(t:Block, b:Block):void {
+		recordAction([INSERT_BLOCK_SUB2, app.viewedObj(), t, b, t.subStack2, b.originalState]);
+	}
+	public function recordInsertBlockAround(t:Block, b:Block):void {
+		recordAction([INSERT_BLOCK_AROUND, app.viewedObj(), t, b, t.saveState(), b.originalState]);
+	}
+	public function recordDropIntoThumbnail(t:ScratchObj, b:Block):void {
+		recordAction([DROP_INTO_THUMBNAIL, t, b]);
+	}
+	public function recordDeleteBlock(b:Block, state:BlockState):void {
+		if (state.role == Block.ROLE_NONE) return;
+		var comments:Array = b.attachedCommentsIn(app.scriptsPane);
+		if (comments.length) {
+			for each (var c:ScratchComment in comments) {
+				c.parent.removeChild(c);
+			}
+			app.scriptsPane.fixCommentLayout();
+		}
+		recordAction([DELETE_BLOCK, app.viewedObj(), b, state, comments]);
+	}
+	public function recordCleanUp():void {
+		var obj:ScratchObj = app.viewedObj();
+		var positions:Array = [];
+		for each (var s:Block in obj.scripts) {
+			positions.push([s, s.x, s.y]);
+		}
+		recordAction([CLEAN_UP, obj, positions]);
+	}
+	public function recordDeleteSprite(s:ScratchSprite):void {
+		recordAction([DELETE_SPRITE, s, s.scratchX, s.scratchY]);
+	}
+	public function recordAddSprite(s:ScratchSprite):void {
+		recordAction([ADD_SPRITE, s]);
+	}
+	public function recordChangeInput(i:BlockArg, old:String):void {
+		if (old == i.field.text) return;
+		recordAction([CHANGE_INPUT, app.viewedObj(), i, old, i.field.text]);
+	}
+	public function recordRenameSprite(name:String):void {
+		var obj:ScratchObj = app.viewedObj();
+		recordAction([RENAME_SPRITE, obj, obj.objName, name]);
+	}
+	public function recordRenameCostume(name:String):void {
+		var obj:ScratchObj = app.viewedObj();
+		var costume:ScratchCostume = obj.currentCostume();
+		recordAction([RENAME_COSTUME, obj, costume, costume.costumeName, name]);
+	}
+	public function recordRenameSound(s:ScratchSound, name:String):void {
+		var obj:ScratchObj = app.viewedObj();
+		recordAction([RENAME_SOUND, obj, s, s.soundName, name]);
+	}
+	public function recordEditSound(s:ScratchSound, action:String, record:Array):void {
+		var obj:ScratchObj = app.viewedObj();
+		var d:Object = s.editorData;
+		recordAction([EDIT_SOUND, obj, s, action, [d.samples, d.condensedSamples, d.samplesPerCondensedSample], record]);
+	}
+	public function recordDeleteComment(c:ScratchComment, x:Number, y:Number):void {
+		if (!c.originalState[0]) return;
+		recordAction([DELETE_COMMENT, app.viewedObj(), c, x, y]);
+	}
+	public function recordAddComment(c:ScratchComment):void {
+		recordAction([ADD_COMMENT, app.viewedObj(), c, c.x, c.y, c.blockRef]);
+	}
+	public function recordDropComment(c:ScratchComment):void {
+		recordAction([DROP_COMMENT, app.viewedObj(), c, c.originalState, c.saveState()]);
+	}
+	public function recordChangeComment(c:ScratchComment, old:String, text:String):void {
+		if (old == text) return;
+		recordAction([CHANGE_COMMENT, app.viewedObj(), c, old, text]);
+	}
+	public function recordAddSound(s:ScratchSound, obj:ScratchObj):void {
+		recordAction([ADD_SOUND, obj, s, obj.sounds.length]);
+	}
+	public function recordDeleteSound(s:ScratchSound, obj:ScratchObj):void {
+		recordAction([DELETE_SOUND, obj, s, obj.sounds.indexOf(s)]);
+	}
+	public function recordAddCostume(c:ScratchCostume, obj:ScratchObj):void {
+		recordAction([ADD_COSTUME, obj, c, obj.costumes.length]);
+	}
+	public function recordDeleteCostume(c:ScratchCostume, obj:ScratchObj):void {
+		recordAction([DELETE_COSTUME, obj, c, obj.costumes.indexOf(c)]);
+	}
+
+	private function recordAction(a:Array):void {
+		done.push(a);
+		undone.length = 0;
+	}
+
+	private static const scriptActions:Array = [DROP_BLOCK, REPLACE_ARG, INSERT_BLOCK, INSERT_BLOCK_ABOVE, INSERT_BLOCK_SUB1, INSERT_BLOCK_SUB2, INSERT_BLOCK_AROUND, DELETE_BLOCK, CLEAN_UP, CHANGE_INPUT, RENAME_SPRITE, DELETE_COMMENT, ADD_COMMENT, DROP_COMMENT, CHANGE_COMMENT];
+	private function unperform(a:Array):void {
+		selectSpriteForAction(a);
+		switch (a[0]) {
+		case DROP_BLOCK:
+			removeBlock(a[3]);
+			a[3].restoreState(a[4]);
+			break;
+		case REPLACE_ARG:
+			a[2].replaceArg(a[5], a[3]);
+			a[4].restoreState(a[6]);
+			break;
+		case INSERT_BLOCK:
+			removeBlock(a[3]);
+			if (a[4]) {
+				removeBlock(a[4]);
+				a[2].insertBlock(a[4]);
+			}
+			a[3].restoreState(a[5]);
+			break;
+		case INSERT_BLOCK_ABOVE:
+			removeBlock(a[2]);
+			removeBlock(a[3]);
+			a[2].restoreState(a[4]);
+			a[3].restoreState(a[5]);
+			break;
+		case INSERT_BLOCK_SUB1:
+			removeBlock(a[3]);
+			if (a[4]) {
+				removeBlock(a[4]);
+				a[2].insertBlockSub1(a[4]);
+			}
+			a[3].restoreState(a[5]);
+			break;
+		case INSERT_BLOCK_SUB2:
+			removeBlock(a[3]);
+			if (a[4]) {
+				removeBlock(a[4]);
+				a[2].insertBlockSub2(a[4]);
+			}
+			a[3].restoreState(a[5]);
+			break;
+		case INSERT_BLOCK_AROUND:
+			removeBlock(a[2]);
+			removeBlock(a[3]);
+			a[2].restoreState(a[4]);
+			a[3].restoreState(a[5]);
+			break;
+		case DROP_INTO_THUMBNAIL:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('scripts');
+			if (a[2].parent) a[2].parent.removeChild(a[2]);
+			break;
+		case DELETE_BLOCK:
+			a[2].restoreState(a[3]);
+			for each (var c:ScratchComment in a[4]) {
+				app.scriptsPane.addChild(c);
+			}
+			break;
+		case CLEAN_UP:
+			for each (var s:Array in a[2]) {
+				s[0].x = s[1];
+				s[0].y = s[2];
+			}
+			break;
+		case DELETE_SPRITE:
+			app.addSprite(a[1]);
+			a[1].setScratchXY(a[2], a[3]);
+			break;
+		case ADD_SPRITE:
+			a[1].deleteSprite();
+			break;
+		case CHANGE_INPUT:
+			a[2].setArgValue(a[3]);
+			break;
+		case RENAME_SPRITE:
+			selectSpriteIfNeeded(a[1]);
+			setSpriteName(a[2]);
+			app.libraryPart.refresh();
+			break;
+		case RENAME_COSTUME:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('images');
+			a[1].currentCostumeIndex = a[1].costumes.indexOf(a[2]);
+			setCostumeName(a[3]);
+			app.imagesPart.refresh();
+			break;
+		case RENAME_SOUND:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('sounds');
+			setSoundName(a[2], a[3]);
+			app.soundsPart.selectSound(a[2]);
+			break;
+		case EDIT_SOUND:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('sounds');
+			app.soundsPart.selectSound(a[2]);
+			app.soundsPart.editor.waveform.installUndoRecord(a[4]);
+			break;
+		case DELETE_COMMENT:
+			app.scriptsPane.addChild(a[2]);
+			a[2].x = a[3];
+			a[2].y = a[4];
+			break;
+		case ADD_COMMENT:
+			app.scriptsPane.removeChild(a[2]);
+			break;
+		case DROP_COMMENT:
+			a[2].restoreState(a[3]);
+			break;
+		case CHANGE_COMMENT:
+			a[2].setContents(a[3]);
+			break;
+		case ADD_SOUND:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('sounds');
+			a[1].deleteSound(a[2]);
+			app.soundsPart.refresh();
+			break;
+		case DELETE_SOUND:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('sounds');
+			a[1].sounds.splice(a[3], 0, a[2]);
+			app.soundsPart.selectSound(a[2]);
+			break;
+		case ADD_COSTUME:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('images');
+			a[1].deleteCostume(a[2]);
+			app.imagesPart.refresh();
+			break;
+		case DELETE_COSTUME:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('images');
+			a[1].costumes.splice(a[3], 0, a[2]);
+			a[1].currentCostumeIndex = a[3];
+			app.imagesPart.refresh();
+			break;
+		}
+		saveForAction(a);
+	}
+
+	private function perform(a:Array):void {
+		selectSpriteForAction(a);
+		switch (a[0]) {
+		case DROP_BLOCK:
+			removeBlock(a[3]);
+			a[3].restoreState(a[5]);
+			break;
+		case REPLACE_ARG:
+			removeBlock(a[4]);
+			a[2].replaceArgWithBlock(a[3], a[4], app.scriptsPane);
+			break;
+		case INSERT_BLOCK:
+			removeBlock(a[3]);
+			a[2].insertBlock(a[3]);
+			break;
+		case INSERT_BLOCK_ABOVE:
+			removeBlock(a[3]);
+			a[2].insertBlockAbove(a[3]);
+			break;
+		case INSERT_BLOCK_SUB1:
+			removeBlock(a[3]);
+			a[2].insertBlockSub1(a[3]);
+			break;
+		case INSERT_BLOCK_SUB2:
+			removeBlock(a[3]);
+			a[2].insertBlockSub2(a[3]);
+			break;
+		case INSERT_BLOCK_AROUND:
+			removeBlock(a[3]);
+			a[2].insertBlockAround(a[3]);
+			break;
+		case DROP_INTO_THUMBNAIL:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('scripts');
+			a[2].x = app.scriptsPane.padding;
+			a[2].y = app.scriptsPane.padding;
+			app.scriptsPane.addChild(a[2]);
+			break;
+		case DELETE_BLOCK:
+			removeBlock(a[2]);
+			if (a[2].parent) a[2].parent.removeChild(a[2]);
+			for each (var c:ScratchComment in a[4]) {
+				app.scriptsPane.removeChild(c);
+			}
+			break;
+		case CLEAN_UP:
+			app.scriptsPane.cleanup();
+			break;
+		case DELETE_SPRITE:
+			a[1].deleteSprite();
+			break;
+		case ADD_SPRITE:
+			app.addSprite(a[1]);
+			break;
+		case CHANGE_INPUT:
+			a[2].setArgValue(a[4]);
+			break;
+		case RENAME_SPRITE:
+			selectSpriteIfNeeded(a[1]);
+			setSpriteName(a[3]);
+			app.libraryPart.refresh();
+			break;
+		case RENAME_COSTUME:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('images');
+			a[1].currentCostumeIndex = a[1].costumes.indexOf(a[2]);
+			setCostumeName(a[4]);
+			app.imagesPart.refresh();
+			break;
+		case RENAME_SOUND:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('sounds');
+			setSoundName(a[2], a[4]);
+			app.soundsPart.selectSound(a[2]);
+			break;
+		case EDIT_SOUND:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('sounds');
+			app.soundsPart.selectSound(a[2]);
+			app.soundsPart.editor.waveform.installUndoRecord(a[5]);
+			break;
+		case DELETE_COMMENT:
+			if (a[2].parent) a[2].parent.removeChild(a[2]);
+			break;
+		case ADD_COMMENT:
+			app.scriptsPane.addChild(a[2]);
+			a[2].x = a[3];
+			a[2].y = a[4];
+			a[2].blockRef = a[5];
+			break;
+		case DROP_COMMENT:
+			a[2].restoreState(a[4]);
+			break;
+		case CHANGE_COMMENT:
+			a[2].setContents(a[4]);
+			break;
+		case ADD_SOUND:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('sounds');
+			a[1].sounds.splice(a[3], 0, a[2]);
+			app.soundsPart.selectSound(a[2]);
+			break;
+		case DELETE_SOUND:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('sounds');
+			a[1].deleteSound(a[2]);
+			app.soundsPart.refresh();
+			break;
+		case ADD_COSTUME:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('images');
+			a[1].costumes.splice(a[3], 0, a[2]);
+			a[1].currentCostumeIndex = a[3];
+			app.imagesPart.refresh();
+			break;
+		case DELETE_COSTUME:
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('images');
+			a[1].deleteCostume(a[2]);
+			app.imagesPart.refresh();
+			break;
+		}
+		saveForAction(a);
+	}
+
+	public function getActionName(a:Array):String {
+		switch (a[0]) {
+		case DROP_BLOCK:
+		case REPLACE_ARG:
+		case INSERT_BLOCK:
+		case INSERT_BLOCK_ABOVE:
+		case INSERT_BLOCK_SUB1:
+		case INSERT_BLOCK_SUB2:
+		case INSERT_BLOCK_AROUND: return Translator.map('drop block');
+		case DROP_INTO_THUMBNAIL: return Translator.map('copy block');
+		case DELETE_BLOCK: return Translator.map('delete block');
+		case DELETE_SPRITE: return Translator.map('delete sprite');
+		case CLEAN_UP: return Translator.map('clean up');
+		case ADD_SPRITE: return Translator.map('add sprite');
+		case CHANGE_INPUT: return Translator.map('edit input');
+		case RENAME_SPRITE: return Translator.map('rename sprite');
+		case RENAME_COSTUME: return a[1].isStage ? Translator.map('rename backdrop') : Translator.map('rename costume');
+		case RENAME_SOUND: return Translator.map('rename sound');
+		case EDIT_SOUND: return Translator.map(a[3]);
+		case DELETE_COMMENT: return Translator.map('delete comment');
+		case ADD_COMMENT: return Translator.map('add comment');
+		case DROP_COMMENT: return Translator.map('drop comment');
+		case CHANGE_COMMENT: return Translator.map('edit comment');
+		case ADD_SOUND: return Translator.map('add sound');
+		case DELETE_SOUND: return Translator.map('delete sound');
+		case ADD_COSTUME: return a[1].isStage ? Translator.map('add backdrop') : Translator.map('add costume');
+		case DELETE_COSTUME: return a[1].isStage ? Translator.map('delete backdrop') : Translator.map('delete costume');
+		}
+		return '';
+	}
+
+	private function selectSpriteForAction(a:Array):void {
+		if (scriptActions.indexOf(a[0]) != -1) {
+			selectSpriteIfNeeded(a[1]);
+			selectTabIfNeeded('scripts');
+		}
+	}
+
+	private function saveForAction(a:Array):void {
+		if (scriptActions.indexOf(a[0]) != -1) {
+			app.scriptsPane.saveScripts();
+			app.scriptsPane.updateSize();
+		} else {
+			app.setSaveNeeded();
+		}
+	}
+
+	private function selectSpriteIfNeeded(s:ScratchObj):void {
+		if (app.viewedObj() != s) {
+			app.selectSprite(s);
+		}
+	}
+
+	private function selectTabIfNeeded(t:String):void {
+		if (app.lastTab != t) {
+			app.setTab(t);
+		}
+	}
+
+	private function removeBlock(b:Block):void {
+		if (b.parent is Block) Block(b.parent).removeBlock(b);
+	}
+
+	
+	
+src/ui/BlocksPalette.as (file 5/6), conflict 1/1:
+
+	public function handleDrop(obj:*):Boolean {
+		// Delete blocks and stacks dropped onto the palette.
+		var c:ScratchComment = obj as ScratchComment;
+		if (c) {
+<<<<<<< HEAD
+			c.deleteComment(true);
+=======
+			c.x = c.y = 20; // position for undelete
+			c.deleteComment();
+>>>>>>> master
+			return true;
+		}
+		var b:Block = obj as Block;
+		if (b) {
+			return b.deleteStack(b.originalState);
+		}
+		return false;
+	}
+
+The conflict here is because the comment block is repositioned in master
+and a flag argument is pass to deleteComment in the "undo" branch. Those lines being next
+to each other, we conclude that to:
+
+	public function handleDrop(obj:*):Boolean {
+		// Delete blocks and stacks dropped onto the palette.
+		var c:ScratchComment = obj as ScratchComment;
+		if (c) {
+			c.x = c.y = 20; // position for undelete
+			c.deleteComment(true);
+			return true;
+		}
+		var b:Block = obj as Block;
+		if (b) {
+			return b.deleteStack(b.originalState);
+		}
+		return false;
+	}
+
+
+src/uiwidgets/ScriptsPane.as (file 6/6), conflict 1/2:
+	
+	public function menu(evt:MouseEvent):Menu {
+		var x:Number = mouseX;
+		var y:Number = mouseY;
+		function newComment():void { addComment(null, x, y) }
+		var m:Menu = new Menu();
+<<<<<<< HEAD
+		m.addItem('cleanup', function():void {
+			app.runtime.recordCleanUp();
+			cleanup();
+		});
+=======
+		m.addItem('clean up', cleanUp);
+>>>>>>> master
+		m.addItem('add comment', newComment);
+		return m;
+	}
+
+The conflict is because addItem is called differenly in the new branch and
+the function cleanup has been renamed to cleanUp in the other.
+
+	public function menu(evt:MouseEvent):Menu {
+		var x:Number = mouseX;
+		var y:Number = mouseY;
+		function newComment():void { addComment(null, x, y) }
+		var m:Menu = new Menu();
+		m.addItem('clean up', function():void {
+			app.runtime.recordCleanUp();
+			cleanup();
+		});
+		m.addItem('add comment', newComment);
+		return m;
+	}
+
+	
+src/uiwidgets/ScriptsPane.as (file 6/6), conflict 2/2:	
+	
+<<<<<<< HEAD
+	public function cleanup():void {
+		// Cleanup the layout of stacks and blocks in the scripts pane.
+=======
+	private function cleanUp():void {
+		// Clean up the layout of stacks and blocks in the scripts pane.
+>>>>>>> master
+
+The function has been renamed (and made public) in one branch and the comment been change in the other.
+Here is my conclusion
+
+	public function cleanup():void {
+		// Clean up the layout of stacks and blocks in the scripts pane.
